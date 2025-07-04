@@ -1,4 +1,5 @@
 import os
+import json
 import subprocess
 import threading
 import tkinter as tk
@@ -7,6 +8,7 @@ from tkinterdnd2 import DND_FILES, TkinterDnD
 from tkinter.scrolledtext import ScrolledText
 from ttkbootstrap import Style
 from ttkbootstrap.widgets import Button, Frame, Progressbar
+
 
 class AudioJoinerApp(TkinterDnD.Tk):
     def __init__(self):
@@ -73,44 +75,53 @@ class AudioJoinerApp(TkinterDnD.Tk):
 
     def join_files(self):
         self.progress["value"] = 0
-        self.progress["maximum"] = len(self.files) + 2
+        self.progress["maximum"] = len(self.files) + 3
 
         try:
-            # Detect codec and bitrate from first file
+            # Step 1: Probe the first file
             probe_cmd = [
                 "ffprobe", "-v", "error", "-select_streams", "a:0",
                 "-show_entries", "stream=codec_name,bit_rate",
-                "-of", "default=noprint_wrappers=1:nokey=1",
-                self.files[0]
+                "-of", "json", self.files[0]
             ]
             result = subprocess.run(probe_cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
-            info = result.stdout.strip().splitlines()
-            codec = info[0] if info else "copy"
-            bitrate = info[1] if len(info) > 1 else None
+            probe_data = json.loads(result.stdout)
+            stream_info = probe_data.get("streams", [{}])[0]
+            codec = stream_info.get("codec_name", "copy")
+            bitrate = stream_info.get("bit_rate", None)
+
+            if bitrate:
+                bitrate_kbps = int(bitrate) // 1000
+                bitrate_str = f"{bitrate_kbps}k"
+            else:
+                bitrate_str = None
+
             self.progress.step()
             self.update_idletasks()
+            self.log_debug(f"Detected codec: {codec}, bitrate: {bitrate_str or 'N/A'}")
 
-            self.log_debug(f"Detected codec: {codec}, bitrate: {bitrate}")
-
+            # Step 2: Create input list
             with open("input.txt", "w", encoding="utf-8") as f:
                 for file in self.files:
-                    safe_path = file.replace("'", "'\\''")
-                    f.write(f"file '{safe_path}'\n")
+                    f.write(f"file '{file}'\n")
                     self.progress.step()
                     self.update_idletasks()
 
+            # Step 3: Build output name and command
             output_ext = os.path.splitext(self.files[0])[1]
             output_name = f"joined_output{output_ext}"
-
             cmd = [
-                "ffmpeg", "-f", "concat", "-safe", "0",
-                "-i", "input.txt", "-c", codec, output_name
+                "ffmpeg", "-y", "-f", "concat", "-safe", "0",
+                "-i", "input.txt", "-c:a", codec
             ]
-            if bitrate:
-                cmd += ["-b:a", bitrate]
+            if bitrate_str:
+                cmd += ["-b:a", bitrate_str]
+            cmd.append(output_name)
 
             self.log_debug(f"Running: {' '.join(cmd)}")
-            subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+
+            result = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+            self.log_debug(result.stderr)
 
             self.progress["value"] = self.progress["maximum"]
             self.log_debug(f"✅ Audio joined into: {output_name}")
@@ -121,6 +132,7 @@ class AudioJoinerApp(TkinterDnD.Tk):
     def log_debug(self, msg):
         self.log.insert(tk.END, msg + "\n")
         self.log.see(tk.END)
+
 
 if __name__ == "__main__":
     app = AudioJoinerApp()
