@@ -11,4 +11,6 @@ pip install ttkbootstrap tkinterdnd2
 
 and of course ffmpeg either in the same folder as the script or in PATH.
 
+Outputs joined_audio.* in the same folder.
+
 Enjoy!
