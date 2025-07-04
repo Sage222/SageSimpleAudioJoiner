@@ -1,7 +1,9 @@
 # SageSimpleAudioJoiner
-Simply python script with GUI for ffmpeg to join mp3', '.wav', '.flac', '.aac', '.ogg', '.m4a.  
+Simple python script with GUI for ffmpeg to join mp3', '.wav', '.flac', '.aac', '.ogg', '.m4a.  
 
 Drag and drop functionlaity. Progress bar and reordering through the GUI.
+
+Detects source bitrate and type and maintains that for joining output.
 
 Needs 
 
